@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       job:
-        description: "doctor | universe | ingest | research | all"
+        description: "doctor | universe | ingest | research | holdout | all"
         default: "doctor"
 concurrency: {group: tq-jobs, cancel-in-progress: false}
 jobs:
@@ -34,3 +34,6 @@ jobs:
       - name: research
         if: env.JOB == 'research' || env.JOB == 'all' || env.JOB == 'scheduled'
         run: python -m nsequant.jobs.research_nightly
+      - name: holdout
+        if: env.JOB == 'holdout'
+        run: python -m nsequant.jobs.holdout

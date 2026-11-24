@@ -90,6 +90,35 @@ def passes_gate(m: dict) -> bool:
                 and m.get("max_drawdown_pct", -1) >= GATE["max_drawdown"])
 
 
+def gate_reasons(m: dict) -> list[dict]:
+    """Each gate condition with its value, so a person can see exactly why a strategy passed or failed."""
+    def g(k, d=None):
+        v = m.get(k)
+        return d if v is None or v != v else v
+    return [
+        dict(name="Enough trades", value=g("n_trades", 0), need=f">= {GATE['min_trades']}",
+             ok=g("n_trades", 0) >= GATE["min_trades"]),
+        dict(name="Deflated Sharpe (luck-adjusted)", value=g("dsr"), need=f">= {GATE['dsr']}",
+             ok=g("dsr", 0) >= GATE["dsr"]),
+        dict(name="Profit after costs and tax", value=g("net_pnl_after_tax"), need="> 0",
+             ok=g("net_pnl_after_tax", -1) > 0),
+        dict(name="Chance of profit after tax", value=g("prob_net_profit"), need=f">= {GATE['prob_profit']}",
+             ok=g("prob_net_profit", 0) >= GATE["prob_profit"]),
+        dict(name="Worst drawdown", value=g("max_drawdown_pct"), need=f">= {GATE['max_drawdown']}",
+             ok=g("max_drawdown_pct", -1) >= GATE["max_drawdown"]),
+    ]
+
+
+def equity_points(equity: pd.Series, n: int = 200) -> list:
+    if equity is None or len(equity) == 0:
+        return []
+    step = max(1, len(equity) // n)
+    e = equity.iloc[::step]
+    if e.index[-1] != equity.index[-1]:
+        e = pd.concat([e, equity.iloc[[-1]]])
+    return [[pd.Timestamp(i).strftime("%Y-%m-%d"), round(float(v), 2)] for i, v in e.items()]
+
+
 def metrics_for(res, rets, reg, costs, capital) -> dict:
     s = dict(res.summary)
     if s.get("n_trades", 0) == 0:
@@ -123,6 +152,7 @@ def run_research(eng, settings: dict, costs: dict, scope: str = "meta_hgb_v1", q
         m = metrics_for(res, rets, reg, costs, settings["capital"])
         ok = passes_gate(m)
         m["market_proxy"], m["holdout_days"] = prep.market_proxy, holdout_days
+        m["equity"] = equity_points(outs[q][0].equity)
         store.save_run(eng, f"{scope}-{pd.Timestamp.now().strftime('%Y%m%d%H%M%S')}-q{q}-{uuid.uuid4().hex[:4]}",
                        scope, f"quantile={q}", m, ok)
         summary[q] = dict(passed_gate=ok, **{k: m.get(k) for k in
@@ -173,6 +203,7 @@ def holdout_check(eng, settings: dict, costs: dict, scope: str, quantile: float,
     thr = float(np.quantile(m.predict_proba(train[prep.cols].to_numpy())[:, 1], quantile))
     sig = signals_from_model(m, prep.feats, prep.holdout_dates, prep.cols, thr, 5)
     res = run_backtest(prep.bars_full, sig, costs, settings)
-    out = dict(res.summary, rejections=res.rejections)
+    out = dict(res.summary, rejections=res.rejections, equity=equity_points(res.equity),
+               quantile=quantile, holdout_days=holdout_days)
     store.save_run(eng, f"{scope}-HOLDOUT-{uuid.uuid4().hex[:6]}", scope, f"HOLDOUT quantile={quantile}", out, False)
     return dict(status="ok", **out)
