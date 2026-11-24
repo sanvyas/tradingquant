@@ -1,0 +1,71 @@
+# Cost, margin and tax configuration for Indian equity trading.
+#
+# EVERY number here is an input, not a fact baked into code. Rates change (STT on F&O
+# changed on 2026-04-01). Each entry carries a source and a status:
+#   status: verified   -> confirmed from a source on the date in `checked`
+#   status: verify     -> from an older/secondary source or memory; confirm before relying on it
+#   status: assumption -> a modelling choice; replace with real broker data
+# Run `python -m nsequant.config` to list everything that is not "verified".
+#
+# Percentages are written as fractions: 0.001 == 0.1%.
+
+meta:
+  broker_profile: upstox
+  checked: "2026-11-25"
+  currency: INR
+
+segments:
+  equity_delivery:
+    brokerage: {flat: 20.0, pct_cap: null}        # Upstox: flat per executed order
+    stt: {buy: 0.001, sell: 0.001}
+    exchange_txn_pct: 0.0000297                   # NSE cash. status verify (from memory)
+    stamp_buy_pct: 0.00015
+    dp_charge_sell_flat: 20.0                     # per scrip per day on sell; GST applies
+    margin_pct: 1.0                               # full value, no leverage
+  equity_intraday:
+    brokerage: {flat: 20.0, pct_cap: 0.001}       # lower of flat or 0.1%
+    stt: {buy: 0.0, sell: 0.00025}
+    exchange_txn_pct: 0.0000297
+    stamp_buy_pct: 0.00003
+    dp_charge_sell_flat: 0.0
+    margin_pct: 0.20                              # status assumption: per-stock in reality
+  equity_futures:
+    brokerage: {flat: 20.0, pct_cap: 0.0005}
+    stt: {buy: 0.0, sell: 0.0005}                 # raised from 0.02% on 2026-04-01
+    exchange_txn_pct: 0.0000173                   # status verify: from a broker page snippet
+    stamp_buy_pct: 0.00002
+    dp_charge_sell_flat: 0.0
+    margin_pct: 0.12                              # status assumption: use broker margin API
+  equity_options:                                 # charges apply to PREMIUM value
+    brokerage: {flat: 20.0, pct_cap: null}
+    stt: {buy: 0.0, sell: 0.0015}                 # raised from 0.10% on 2026-04-01
+    exchange_txn_pct: 0.0003503                   # status verify: from a broker page snippet
+    stamp_buy_pct: 0.00003
+    dp_charge_sell_flat: 0.0
+    margin_pct: 1.0                               # buying: premium paid in full
+
+sebi_turnover_pct: 0.000001                       # Rs 10 per crore
+ipft_pct: 0.0                                     # status verify: NSE IPFT levy not modelled yet
+gst_rate: 0.18                                    # on brokerage + txn + SEBI + IPFT (+ DP charge)
+
+# Execution friction. Large liquid stocks only; widen for mid/small caps.
+slippage:
+  entry_bps: 5.0
+  exit_bps: 5.0
+  stop_exit_extra_bps: 10.0                       # stops fill worse than limit exits
+  status: assumption
+
+tax:
+  # Your real marginal rate matters. Business income is taxed at slab rate (top slab 30%).
+  business_income_marginal_rate: 0.30             # status assumption: set your own
+  cess: 0.04
+  stcg_rate: 0.20                                 # listed equity, STT paid, <= 12 months
+  ltcg_rate: 0.125
+  ltcg_exemption: 125000
+  long_term_days: 365
+  # Heads: delivery -> capital gains; intraday -> speculative business income;
+  # futures/options -> non-speculative business income.
+  # Simplifications (conservative): losses are netted within a financial year per head;
+  # carry-forward is NOT credited. STT is deductible against business income only.
+  surcharge_modelled: false
+  status: verify with a CA; rates last checked 2026-11-25 from secondary sources

@@ -1,0 +1,21 @@
+capital: 100000                 # INR, upper end of your stated range
+risk:
+  risk_per_trade_pct: 0.01      # max loss at stop, as fraction of current equity
+  max_position_pct: 0.30        # max notional per position, fraction of equity
+  max_open_positions: 4
+  daily_loss_limit_pct: 0.03    # used by the live risk layer (stage 5)
+  min_net_reward_risk: 1.5      # reject trades whose NET (after costs) target/stop is below this
+  min_expected_net_profit: 150  # INR; reject trades that cannot clear this after costs
+universe:
+  min_median_value_traded_inr: 200000000   # 20 crore/day, liquid names only
+  max_symbols: 150
+backtest:
+  entry_mode: next_open         # next_open | close (BTST style)
+  walk_forward:
+    train_days: 756
+    test_days: 126
+    embargo_days: 10
+news:
+  ingest_delay_minutes: 10      # assumed lag between publication and our system seeing it
+  dedupe_window_hours: 24
+  dedupe_jaccard: 0.8

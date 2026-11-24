@@ -1,0 +1,59 @@
+# Cron schedules are UTC. IST = UTC+5:30.
+databases:
+  - name: tq-db
+    plan: basic-256mb
+    region: singapore
+    databaseName: tradingquant
+    ipAllowList: []          # private network only
+
+services:
+  - type: web
+    name: tq-dashboard
+    runtime: python
+    region: singapore
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn nsequant.app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
+    envVars:
+      - {key: PYTHON_VERSION, value: "3.12.3"}
+      - {key: DATABASE_URL, fromDatabase: {name: tq-db, property: connectionString}}
+      - {key: DASH_PASSWORD, sync: false}
+
+  # 1st of month, 04:30 IST: rebuild the liquid-stock universe (run once by hand before the first ingest)
+  - type: cron
+    name: tq-build-universe
+    runtime: python
+    region: singapore
+    plan: starter
+    schedule: "0 23 1 * *"
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m nsequant.jobs.build_universe
+    envVars: &jobenv
+      - {key: PYTHON_VERSION, value: "3.12.3"}
+      - {key: DATABASE_URL, fromDatabase: {name: tq-db, property: connectionString}}
+      - {key: UPSTOX_ANALYTICS_TOKEN, sync: false}
+
+  # Mon-Fri 16:45 IST: pull the day's bars (after the 15:30 close)
+  - type: cron
+    name: tq-ingest-prices
+    runtime: python
+    region: singapore
+    plan: starter
+    schedule: "15 11 * * 1-5"
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m nsequant.jobs.ingest_prices
+    envVars: *jobenv
+
+  # Mon-Fri 18:30 IST: walk-forward research (needs more memory)
+  - type: cron
+    name: tq-research
+    runtime: python
+    region: singapore
+    plan: standard
+    schedule: "0 13 * * 1-5"
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m nsequant.jobs.research_nightly
+    envVars:
+      - {key: PYTHON_VERSION, value: "3.12.3"}
+      - {key: DATABASE_URL, fromDatabase: {name: tq-db, property: connectionString}}
