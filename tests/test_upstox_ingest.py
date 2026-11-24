@@ -173,3 +173,14 @@ def test_equity_only_filters_non_equity():
                        dict(instrument_key="b", trading_symbol="B", isin="INF1", segment="NSE_EQ", instrument_type="EQ"),
                        dict(instrument_key="c", trading_symbol="C", isin="INE3", segment="NSE_FO", instrument_type="FUT")])
     assert list(equity_only(df)["trading_symbol"]) == ["A"]
+
+
+def test_doctor_reports_each_check_without_leaking_secrets(tmp_path):
+    from nsequant.jobs import doctor
+    e = store.get_engine(f"sqlite:///{tmp_path}/d.db")
+    ok = doctor.check({}, client=client(lambda url: Resp(200, candles_payload("2026-01-05", 3))), engine=e)
+    assert all(x[1] for x in ok)
+    missing = doctor.check({"DATABASE_URL": "sqlite:///" + str(tmp_path) + "/e.db"})
+    assert missing[1][1] is False and "not set" in missing[1][2]
+    bad = doctor.check({}, client=client(lambda url: Resp(401)), engine=e)
+    assert bad[1][1] is False

@@ -1,0 +1,36 @@
+# Weekday data pull + research. Cron is UTC: 11:15 UTC = 16:45 IST (after the 15:30 close). GitHub may delay by minutes.
+name: daily
+on:
+  schedule:
+    - cron: "15 11 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      job:
+        description: "doctor | universe | ingest | research | all"
+        default: "doctor"
+concurrency: {group: tq-jobs, cancel-in-progress: false}
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      UPSTOX_ANALYTICS_TOKEN: ${{ secrets.UPSTOX_ANALYTICS_TOKEN }}
+      JOB: ${{ github.event.inputs.job || 'scheduled' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: pip install -r requirements.txt
+      - name: doctor
+        if: env.JOB == 'doctor' || env.JOB == 'all' || env.JOB == 'scheduled'
+        run: python -m nsequant.jobs.doctor
+      - name: universe
+        if: env.JOB == 'universe' || env.JOB == 'all'
+        run: python -m nsequant.jobs.build_universe
+      - name: ingest
+        if: env.JOB == 'ingest' || env.JOB == 'all' || env.JOB == 'scheduled'
+        run: python -m nsequant.jobs.ingest_prices
+      - name: research
+        if: env.JOB == 'research' || env.JOB == 'all' || env.JOB == 'scheduled'
+        run: python -m nsequant.jobs.research_nightly

@@ -47,7 +47,9 @@ broker's SEBI algo setup (exchange-approved, static IP, algo ID) before you enab
 
 Synthetic data tests plumbing only. They say nothing about real markets.
 
-## Cloud deployment (Render)
-`render.yaml` defines: Postgres, a password-protected dashboard, and cron jobs (universe monthly, price ingest
-and research each weekday). Secrets (`UPSTOX_ANALYTICS_TOKEN`, `DASH_PASSWORD`) are set in the Render dashboard,
-never committed. First run order: build_universe -> ingest_prices -> research. Research only; no orders are placed.
+## Cloud deployment (all free tiers)
+* **Jobs:** GitHub Actions (`.github/workflows`): monthly universe, weekday ingest + research. Run manually from the Actions tab.
+* **Database:** any free Postgres (Neon or a dedicated Supabase project) via the `DATABASE_URL` Actions secret.
+* **Dashboard:** `render.yaml` (Render free web service; sleeps when idle, wakes on visit).
+* Secrets live only in GitHub/Render secret settings, never in the repo. First run: `doctor` -> `all`.
+* Research only; no orders are placed. Changing model code? Bump the trial scope so the trial count stays honest.
